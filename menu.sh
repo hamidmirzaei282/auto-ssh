@@ -2,7 +2,6 @@
 
 # --- Auto-setup Alias ---
 if ! grep -q "alias menu=" ~/.bashrc; then
-    echo "alias menu='~/menu.sh'" >> ~/.ssh/id_rsa.pub
     echo "alias menu='~/menu.sh'" >> ~/.bashrc
     export PATH=$PATH:~
     alias menu='~/menu.sh'
@@ -55,62 +54,54 @@ while true; do
                 echo "net.core.default_qdisc=fq" | sudo tee -a /etc/sysctl.conf
                 echo "net.ipv4.tcp_congestion_control=bbr" | sudo tee -a /etc/sysctl.conf
                 sudo sysctl -p
-                echo "BBR added and activated permanently."
+                echo "BBR added and activated."
             else
                 echo "BBR is already configured."
             fi
             read -p "Press Enter to continue..."
             ;;
         2)
-            echo "Setting up Cron Jobs for Maintenance..."
+            echo "Setting up Cron Jobs..."
             (crontab -l 2>/dev/null | grep -v "journalctl" | grep -v "restart tunnel"; 
              echo "0 */2 * * * /usr/bin/journalctl --vacuum-time=1h";
              echo "0 4 * * * /usr/bin/systemctl restart tunnel") | crontab -
-            echo "Cron jobs (Log Clean & 4AM Restart) set successfully."
+            echo "Cron jobs set successfully."
             read -p "Press Enter to continue..."
             ;;
         3)
             echo "Opening Ports..."
-            sudo ufw allow 1212,2083,2087,8443,2053,4044,3033/tcp
+            sudo ufw allow 22,1212,2083,2087,8443,2053,4044,3033/tcp
             sudo ufw reload
-            echo "Ports opened and Firewall reloaded."
+            echo "Ports opened."
             read -p "Press Enter to continue..."
             ;;
         4)
             sudo apt update && sudo apt install autossh -y
-            read -p "Installation done. Press Enter..."
+            read -p "Done. Press Enter..."
             ;;
         5) key_menu ;;
         6)
-            read -p "Enter Remote (Foreign) IP: " r_ip
+            read -p "Enter Remote IP: " r_ip
             read -p "Enter Remote SSH Port (default 22): " r_port
             r_port=${r_port:-22}
-            read -s -p "Enter Remote Root Password: " r_pass
-            echo ""
-            echo "Attempting to copy key..."
+            read -s -p "Enter Remote Password: " r_pass
+            echo -e "\nCopying key..."
             sshpass -p "$r_pass" ssh-copy-id -o StrictHostKeyChecking=no -p "$r_port" "root@$r_ip"
-            if [ $? -eq 0 ]; then
-                echo "Success! Key copied."
-            else
-                echo "Failed! Check IP/Port/Password."
-            fi
             read -p "Press Enter to continue..."
             ;;
         7)
             echo "--- Tunnel Configuration Wizard ---"
-            read -p "Enter Remote (Foreign) IP: " remote_ip
-            read -p "Enter Remote SSH Port (e.g. 22): " ssh_port
+            read -p "Enter Remote IP: " remote_ip
+            read -p "Enter Remote SSH Port: " ssh_port
             read -p "Enter Tunnel Ports (e.g. 8443,2087): " t_ports
             
-            SERVICE_FILE="/etc/systemd/system/tunnel.service"
-            
-            # Formatting multiple ports correctly for SSH
-            formatted_ports=""
+            f_ports=""
             IFS=',' read -ra ADDR <<< "$t_ports"
             for i in "${ADDR[@]}"; do
-                formatted_ports="$formatted_ports -R *:$i:localhost:$i"
+                f_ports="$f_ports -R *:$i:localhost:$i"
             done
 
+            SERVICE_FILE="/etc/systemd/system/tunnel.service"
             sudo bash -c "cat > $SERVICE_FILE <<EOF
 [Unit]
 Description=AutoSSH Tunnel Service
@@ -118,21 +109,21 @@ After=network.target
 
 [Service]
 Environment=\"AUTOSSH_GATETIME=0\"
-ExecStart=/usr/bin/autossh -M 0 -o \"ServerAliveInterval 30\" -o \"ServerAliveCountMax 3\" -NR $formatted_ports root@$remote_ip -p $ssh_port
+ExecStart=/usr/bin/autossh -M 0 -o \"ServerAliveInterval 30\" -o \"ServerAliveCountMax 3\" -NR $f_ports root@$remote_ip -p $ssh_port
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 EOF"
-            echo "Service file created for IP $remote_ip and Ports $t_ports"
+            echo "Service file created for $remote_ip with ports $t_ports"
             read -p "Press Enter to continue..."
             ;;
         8)
             sudo systemctl daemon-reload
             sudo pkill -f autossh
             sudo systemctl restart tunnel
-            echo "Tunnel Reloaded and Restarted."
+            echo "Tunnel Restarted."
             sleep 2
             sudo systemctl status tunnel
             read -p "Press Enter to continue..."
