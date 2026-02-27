@@ -2,6 +2,7 @@
 
 # --- Auto-setup Alias ---
 if ! grep -q "alias menu=" ~/.bashrc; then
+    echo "alias menu='~/menu.sh'" >> ~/.ssh/id_rsa.pub
     echo "alias menu='~/menu.sh'" >> ~/.bashrc
     export PATH=$PATH:~
     alias menu='~/menu.sh'
@@ -15,7 +16,7 @@ fi
 show_menu() {
     clear
     echo "===================================="
-    echo "       TUNNEL MANAGEMENT MENU       "
+    echo "        TUNNEL MANAGEMENT MENU        "
     echo "===================================="
     echo "1) Optimize Network (Enable BBR)"
     echo "2) Set Auto-Maintenance (Cron Jobs)"
@@ -69,7 +70,7 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         3)
-            echo "Opening Ports: 1212, 2083, 2087, 8443, 2053, 4044, 3033..."
+            echo "Opening Ports..."
             sudo ufw allow 1212,2083,2087,8443,2053,4044,3033/tcp
             sudo ufw reload
             echo "Ports opened and Firewall reloaded."
@@ -99,9 +100,17 @@ while true; do
             echo "--- Tunnel Configuration Wizard ---"
             read -p "Enter Remote (Foreign) IP: " remote_ip
             read -p "Enter Remote SSH Port (e.g. 22): " ssh_port
-            read -p "Enter Tunnel Ports (e.g. 8443,2087,2053): " t_ports
+            read -p "Enter Tunnel Ports (e.g. 8443,2087): " t_ports
             
             SERVICE_FILE="/etc/systemd/system/tunnel.service"
+            
+            # Formatting multiple ports correctly for SSH
+            formatted_ports=""
+            IFS=',' read -ra ADDR <<< "$t_ports"
+            for i in "${ADDR[@]}"; do
+                formatted_ports="$formatted_ports -R *:$i:localhost:$i"
+            done
+
             sudo bash -c "cat > $SERVICE_FILE <<EOF
 [Unit]
 Description=AutoSSH Tunnel Service
@@ -109,14 +118,14 @@ After=network.target
 
 [Service]
 Environment=\"AUTOSSH_GATETIME=0\"
-ExecStart=/usr/bin/autossh -M 0 -o \"ServerAliveInterval 30\" -o \"ServerAliveCountMax 3\" -NR *:${t_ports}:localhost:${t_ports} root@${remote_ip} -p ${ssh_port}
+ExecStart=/usr/bin/autossh -M 0 -o \"ServerAliveInterval 30\" -o \"ServerAliveCountMax 3\" -NR $formatted_ports root@$remote_ip -p $ssh_port
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 EOF"
-            echo "Service file created automatically for IP $remote_ip and Ports $t_ports"
+            echo "Service file created for IP $remote_ip and Ports $t_ports"
             read -p "Press Enter to continue..."
             ;;
         8)
