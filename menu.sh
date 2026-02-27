@@ -23,7 +23,7 @@ show_menu() {
     echo "4) Install AutoSSH Requirements"
     echo "5) Keys (Make or Show SSH Keys)"
     echo "6) Auto-Copy SSH Key to Remote Server"
-    echo "7) Setup Tunnel Service (Auto-Configure)"
+    echo "7) Setup Tunnel Service (Manual Edit)"
     echo "8) Start/Restart Tunnel Service"
     echo "9) Show Tunnel Status"
     echo "0) Exit"
@@ -90,40 +90,20 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         7)
-            echo "--- Tunnel Configuration Wizard ---"
-            read -p "Enter Remote IP: " remote_ip
-            read -p "Enter Remote SSH Port: " ssh_port
-            read -p "Enter Tunnel Ports (e.g. 8443,2087): " t_ports
-            
-            f_ports=""
-            IFS=',' read -ra ADDR <<< "$t_ports"
-            for i in "${ADDR[@]}"; do
-                f_ports="$f_ports -R *:$i:localhost:$i"
-            done
-
+            echo "--- Manual Tunnel Configuration ---"
+            echo "Opening service file with nano..."
+            echo "Paste your service configuration, then press Ctrl+O, Enter, and Ctrl+X."
+            sleep 3
             SERVICE_FILE="/etc/systemd/system/tunnel.service"
-            sudo bash -c "cat > $SERVICE_FILE <<EOF
-[Unit]
-Description=AutoSSH Tunnel Service
-After=network.target
-
-[Service]
-Environment=\"AUTOSSH_GATETIME=0\"
-ExecStart=/usr/bin/autossh -M 0 -o \"ServerAliveInterval 30\" -o \"ServerAliveCountMax 3\" -NR $f_ports root@$remote_ip -p $ssh_port
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF"
-            echo "Service file created for $remote_ip with ports $t_ports"
+            sudo nano $SERVICE_FILE
+            echo "Service file updated."
             read -p "Press Enter to continue..."
             ;;
         8)
             sudo systemctl daemon-reload
             sudo pkill -f autossh
             sudo systemctl restart tunnel
-            echo "Tunnel Restarted."
+            echo "Tunnel Reloaded and Restarted."
             sleep 2
             sudo systemctl status tunnel
             read -p "Press Enter to continue..."
